@@ -29,6 +29,16 @@ tri = Polygon([[0.0, 1.3], [-1.3, -0.6], [1.2, -0.7]]).with_color(0.2, 0.45, 0.9
 shape = (circle | square) - tri
 ```
 
+### Composability
+- Every transform and set operator returns a `Shape`. That means you can apply transforms to already-composed shapes and keep nesting indefinitely.
+- Colors are preserved through transforms and set operations via a general color algebra.
+
+Example (transforming a composite):
+
+```python
+small_rotated = shape.scale(0.5).rotate(0.6).translate(0.2, -0.3)
+```
+
 ### Setup (conda)
 
 ```bash

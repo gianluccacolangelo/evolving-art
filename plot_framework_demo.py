@@ -15,8 +15,9 @@ def build_composition():
 
 def main():
     shape = build_composition()
+    shape2 = shape.scale(0.5).rotate(np.pi/4)
     render_to_file(
-        shape,
+        shape2,
         out_path="plots/framework_demo.png",
         title="Framework demo: (Circle ∪ Square) − Triangle",
         resolution=300,

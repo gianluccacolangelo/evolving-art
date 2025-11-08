@@ -126,13 +126,14 @@ class Transformed(Shape):
         return self.shape.sdf(self.transform.inverse_apply(point_xy))
 
     def color_at(self, point_xy: np.ndarray) -> Optional[np.ndarray]:
-        return self.shape.color_at(self.transform.inverse_apply(point_xy))
+        # Delegate to underlying shape's evaluation for color to preserve composites' colors
+        d, c = self.shape.evaluate(self.transform.inverse_apply(point_xy))
+        return c
 
     def evaluate(self, point_xy: np.ndarray) -> Tuple[float, Optional[np.ndarray]]:
+        # Pullback and fully delegate to shape.evaluate to keep color algebra intact
         pin = self.transform.inverse_apply(point_xy)
-        d = self.shape.sdf(pin)
-        c = self.shape.color_at(pin)
-        return d, c
+        return self.shape.evaluate(pin)
 
 
 class UnitSquare(Shape):
