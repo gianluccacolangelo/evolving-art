@@ -3,6 +3,8 @@ from __future__ import annotations
 from typing import Iterable, Optional, Tuple, Union
 import numpy as np
 import matplotlib.pyplot as plt
+import os
+import multiprocessing as mp
 
 from shapes import Shape, UnionN
 
@@ -19,7 +21,7 @@ def _as_shape(shape_or_shapes: Union[Shape, Iterable[Shape]]) -> Shape:
 def autosize_bounds(
     shape: Union[Shape, Iterable[Shape]],
     initial_bounds: Tuple[float, float, float, float] = (-2.0, 2.0, -2.0, 2.0),
-    coarse_resolution: int = 200,
+    coarse_resolution: int = 100,
     margin: float = 0,
 ) -> Tuple[Tuple[float, float], Tuple[float, float]]:
     """
@@ -85,6 +87,40 @@ def sample_shape_rgba(
     return X, Y, Z, RGBA
 
 
+# ---- Multiprocessing helpers ----
+_SHAPE = None
+_XS = None
+_YS = None
+_FALLBACK = None
+
+
+def _init_worker(shape_obj: Shape, xlim: Tuple[float, float], ylim: Tuple[float, float], resolution: int, fallback: np.ndarray):
+    global _SHAPE, _XS, _YS, _FALLBACK
+    _SHAPE = shape_obj
+    _XS = np.linspace(xlim[0], xlim[1], resolution)
+    _YS = np.linspace(ylim[0], ylim[1], resolution)
+    _FALLBACK = fallback
+
+
+def _eval_row(i: int):
+    xs = _XS
+    y = _YS[i]
+    row_pts = np.stack([xs, np.full_like(xs, y)], axis=1)
+    evals = [_SHAPE.evaluate(pt) for pt in row_pts]
+    d_row = np.fromiter((ev[0] for ev in evals), dtype=float, count=row_pts.shape[0])
+    inside_mask = d_row <= 0.0
+    c_list = []
+    for _, c in evals:
+        if c is None:
+            c_list.append(_FALLBACK)
+        else:
+            c_arr = np.asarray(c, dtype=float).reshape(3,)
+            c_list.append(np.clip(c_arr, 0.0, 1.0))
+    c_row = np.vstack(c_list)
+    alpha_row = inside_mask.astype(np.float64)
+    return i, d_row, alpha_row, c_row
+
+
 def render_to_axes(
     ax,
     shape: Union[Shape, Iterable[Shape]],
@@ -96,11 +132,29 @@ def render_to_axes(
     edge_color: str = "black",
     edge_width: float = 1.5,
     interpolation: str = "none",
+    parallel: bool = True,
+    workers: Optional[int] = None,
 ) -> None:
     shape = _as_shape(shape)
     if xlim is None or ylim is None:
         xlim, ylim = autosize_bounds(shape)
-    X, Y, Z, RGBA = sample_shape_rgba(shape, xlim, ylim, resolution=resolution)
+    # Choose between single-process and parallel sampling
+    if parallel:
+        if workers is None:
+            workers = max(1, (os.cpu_count() or 2) - 0)
+        xs = np.linspace(xlim[0], xlim[1], resolution)
+        ys = np.linspace(ylim[0], ylim[1], resolution)
+        X, Y = np.meshgrid(xs, ys)
+        Z = np.empty_like(X, dtype=float)
+        RGBA = np.zeros((resolution, resolution, 4), dtype=float)
+        fallback = np.array([0.6, 0.6, 0.6], dtype=float)
+        with mp.Pool(processes=workers, initializer=_init_worker, initargs=(shape, xlim, ylim, resolution, fallback)) as pool:
+            for i, d_row, alpha_row, c_row in pool.imap_unordered(_eval_row, range(resolution), chunksize=max(1, resolution // (workers * 8))):
+                Z[i, :] = d_row
+                RGBA[i, :, :3] = np.where(alpha_row[:, None] > 0.0, c_row, 0.0)
+                RGBA[i, :, 3] = alpha_row
+    else:
+        X, Y, Z, RGBA = sample_shape_rgba(shape, xlim, ylim, resolution=resolution)
     ax.imshow(
         RGBA,
         extent=(xlim[0], xlim[1], ylim[0], ylim[1]),
@@ -130,6 +184,8 @@ def render_to_file(
     edge_color: str = "black",
     edge_width: float = 1.5,
     interpolation: str = "none",
+    parallel: bool = True,
+    workers: Optional[int] = None,
     dpi: int = 220,
 ) -> None:
     fig, ax = plt.subplots(1, 1, figsize=figsize, constrained_layout=True)
@@ -144,6 +200,8 @@ def render_to_file(
         edge_color=edge_color,
         edge_width=edge_width,
         interpolation=interpolation,
+        parallel=parallel,
+        workers=workers,
     )
     fig.savefig(out_path, dpi=dpi)
     plt.close(fig)
