@@ -4,6 +4,10 @@ from shapely.geometry import Polygon, Point, box
 from shapely import affinity
 import shapely.ops
 from typing import List, Tuple, Union, Any
+import io
+from PIL import Image
+from typing import Optional
+
 
 from evolution.genome import CompositionGenome, PrimitiveNode, OpNode, PrimitiveGene
 from shapes.geometry import ColorAlgebra
@@ -213,5 +217,56 @@ def save_genome_as_svg(
     
     draw_genome_on_axis(ax, genome)
     
-    fig.savefig(filename, format='svg', bbox_inches='tight', pad_inches=0)
+    fig.savefig(
+        filename, 
+        format='svg', 
+        bbox_inches='tight', 
+        pad_inches=0
+    )
     plt.close(fig)
+
+def save_genome_as_png(
+    genome: CompositionGenome,
+    filename: Optional[str] = None,
+    resolution: int = 128
+) -> Optional[Image.Image]:
+    """
+    Saves the genome as a low-res PNG using the vectorizer strategy for faster GUI display, 
+    or returns the PIL Image object if filename is None (in-memory rendering).
+    """
+    # Usamos un tamaño de figura pequeño, y ajustamos el DPI para obtener la resolución final.
+    DPI_CALC = resolution / 3.0 
+    
+    fig, ax = plt.subplots(figsize=(3, 3)) 
+
+    draw_genome_on_axis(ax, genome)
+    
+    if filename is None:
+        # Save to an in-memory buffer
+        buffer = io.BytesIO()
+        fig.savefig(
+            buffer, 
+            format='png', 
+            dpi=DPI_CALC, 
+            bbox_inches='tight', 
+            pad_inches=0,
+            transparent=False,
+            facecolor='white'
+        )
+        plt.close(fig)
+        buffer.seek(0)
+        # Load PIL Image from buffer
+        return Image.open(buffer) 
+    else:
+        # Save to file (old behavior)
+        fig.savefig(
+            filename, 
+            format='png', 
+            dpi=DPI_CALC, 
+            bbox_inches='tight', 
+            pad_inches=0,
+            transparent=False, 
+            facecolor='white'
+        )
+        plt.close(fig)
+        return None

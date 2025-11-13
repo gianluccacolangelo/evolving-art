@@ -4,11 +4,12 @@ from typing import Iterable, Optional, Sequence, Tuple, Union
 import numpy as np
 import matplotlib.pyplot as plt
 import os
+from PIL import Image
 
 from evolution.genome import CompositionGenome
 from shapes import Shape, UnionN
-# Importamos la nueva función de dibujo vectorial
-from plotting.vectorizer import save_genome_as_svg, draw_genome_on_axis
+
+from plotting.vectorizer import save_genome_as_svg, save_genome_as_png, draw_genome_on_axis
 
 def _as_shape(shape_or_shapes: Union[Shape, Iterable[Shape]]) -> Shape:
     if isinstance(shape_or_shapes, Shape):
@@ -119,7 +120,6 @@ def render_to_axes(
     else:
         ax.axis("off")
 
-
 def render_to_file(
     genome: CompositionGenome,
     out_path: str,
@@ -140,32 +140,48 @@ def render_to_file(
     dpi: int = 220,
     format: Optional[str] = None,
     transparent: bool = False,
-) -> None:
-    if format == "svg":
-        save_genome_as_svg(genome, filename=out_path)
-        return
+    return_image: bool = False,
+) -> Optional[Image.Image]:
     
-    elif format == "png":
-        fig, ax = plt.subplots(1, 1, figsize=figsize, constrained_layout=True)
-        render_to_axes(
-            ax,
-            genome.to_shape(),
-            xlim=xlim,
-            ylim=ylim,
-            resolution=resolution,
-            title=title,
-            draw_edges=draw_edges,
-            edge_color=edge_color,
-            edge_width=edge_width,
-            interpolation=interpolation,
-            parallel=parallel,
-            workers=workers,
-            show_axes=show_axes,
-            show_grid=show_grid,
-            frame_only=frame_only,
-        )
-        fig.savefig(out_path, dpi=dpi, format=format, transparent=transparent)
-        plt.close(fig)
+ 
+    
+    if format == "svg":
+        if out_path is None: 
+            raise ValueError("SVG rendering requires an output path (out_path).")
+        save_genome_as_svg(genome, filename=out_path)
+        return None
+    
+    if format == "png":
+        if return_image:
+            return save_genome_as_png(genome, filename=None, resolution=resolution) 
+        else:
+            # Renderizar a archivo
+            if out_path is None: 
+                raise ValueError("PNG (vector) rendering requires an output path (out_path) when return_image is False.")
+            save_genome_as_png(genome, filename=out_path, resolution=resolution)
+            return None
+    
+    return None
+        # lo dejo por las dudas
+        #fig, ax = plt.subplots(1, 1, figsize=figsize, constrained_layout=True)
+        #render_to_axes(
+        #    ax,
+        #    genome.to_shape(),
+        #   xlim=xlim,
+        #    ylim=ylim,
+        #    resolution=resolution,
+        #    title=title,
+        #    draw_edges=draw_edges,
+        #    edge_color=edge_color,
+        #    edge_width=edge_width,
+        #    interpolation=interpolation,
+        #    parallel=parallel,
+        #    workers=workers,
+        #    show_axes=show_axes,
+        #    show_grid=show_grid,
+        #    frame_only=frame_only,
+        #fig.savefig(out_path, dpi=dpi, format=format, transparent=transparent)
+        #plt.close(fig)
 
 def render_population_grid(
     population: Sequence[CompositionGenome],

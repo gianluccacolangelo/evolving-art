@@ -65,7 +65,8 @@ def evolve_one_generation(rng: np.random.Generator,
         parents = list(rng.choice(population, size=k, replace=False))
     # Elitism: carry over parents (trim to avoid explosion)
     next_pop: List[CompositionGenome] = []
-    for p in parents[: min(len(parents), max(1, n // 4))]:
+    
+    for p in parents:
         next_pop.append(p)
     # Breed to fill the rest
     while len(next_pop) < n:

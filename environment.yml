@@ -6,4 +6,6 @@ dependencies:
   - numpy
   - matplotlib
   - shapely
+  - pillow
+  - customtkinter
 
