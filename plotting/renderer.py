@@ -1,11 +1,14 @@
 from __future__ import annotations
 
-from typing import Iterable, Optional, Tuple, Union
+from typing import Iterable, Optional, Sequence, Tuple, Union
 import numpy as np
 import matplotlib.pyplot as plt
+import os
 
+from evolution.genome import CompositionGenome
 from shapes import Shape, UnionN
-
+# Importamos la nueva función de dibujo vectorial
+from plotting.vectorizer import save_genome_as_svg, draw_genome_on_axis
 
 def _as_shape(shape_or_shapes: Union[Shape, Iterable[Shape]]) -> Shape:
     if isinstance(shape_or_shapes, Shape):
@@ -91,7 +94,7 @@ def render_to_axes(
     shape = _as_shape(shape)
     if xlim is None or ylim is None:
         xlim, ylim = autosize_bounds(shape)
-    # Single-process, fully vectorized sampling
+
     X, Y, Z, RGBA = sample_shape_rgba(shape, xlim, ylim, resolution=resolution)
     ax.imshow(
         RGBA,
@@ -110,7 +113,6 @@ def render_to_axes(
         ax.set_ylim(*ylim)
         ax.grid(show_grid, alpha=0.2, linestyle="--")
         if frame_only:
-            # Keep spines, hide ticks and labels
             ax.set_xticks([])
             ax.set_yticks([])
             ax.tick_params(bottom=False, left=False, labelbottom=False, labelleft=False)
@@ -119,7 +121,7 @@ def render_to_axes(
 
 
 def render_to_file(
-    shape: Union[Shape, Iterable[Shape]],
+    genome: CompositionGenome,
     out_path: str,
     xlim: Optional[Tuple[float, float]] = None,
     ylim: Optional[Tuple[float, float]] = None,
@@ -134,28 +136,114 @@ def render_to_file(
     workers: Optional[int] = None,
     show_axes: bool = False,
     show_grid: bool = False,
-    frame_only: bool = True,
+    frame_only: bool = False,
     dpi: int = 220,
+    format: Optional[str] = None,
+    transparent: bool = False,
 ) -> None:
-    fig, ax = plt.subplots(1, 1, figsize=figsize, constrained_layout=True)
-    render_to_axes(
-        ax,
-        shape,
-        xlim=xlim,
-        ylim=ylim,
-        resolution=resolution,
-        title=title,
-        draw_edges=draw_edges,
-        edge_color=edge_color,
-        edge_width=edge_width,
-        interpolation=interpolation,
-        parallel=parallel,
-        workers=workers,
-        show_axes=show_axes,
-        show_grid=show_grid,
-        frame_only=frame_only,
-    )
-    fig.savefig(out_path, dpi=dpi)
+    if format == "svg":
+        save_genome_as_svg(genome, filename=out_path)
+        return
+    
+    elif format == "png":
+        fig, ax = plt.subplots(1, 1, figsize=figsize, constrained_layout=True)
+        render_to_axes(
+            ax,
+            genome.to_shape(),
+            xlim=xlim,
+            ylim=ylim,
+            resolution=resolution,
+            title=title,
+            draw_edges=draw_edges,
+            edge_color=edge_color,
+            edge_width=edge_width,
+            interpolation=interpolation,
+            parallel=parallel,
+            workers=workers,
+            show_axes=show_axes,
+            show_grid=show_grid,
+            frame_only=frame_only,
+        )
+        fig.savefig(out_path, dpi=dpi, format=format, transparent=transparent)
+        plt.close(fig)
+
+def render_population_grid(
+    population: Sequence[CompositionGenome],
+    out_path: str,
+    cols: int = 4,
+    resolution: int = 100,
+    figsize_per_cell: Tuple[float, float] = (3.0, 3.0),
+    draw_edges: bool = False,
+    use_vector: bool = True,
+) -> None:
+    """
+    Renders a grid of genomes.
+    If use_vector=True, uses Shapely vectorizer.
+    If use_vector=False, uses pixel-based renderer.
+    """
+    n = len(population)
+    cols = max(1, cols)
+    rows = (n + cols - 1) // cols
+    fig_w = figsize_per_cell[0] * cols
+    fig_h = figsize_per_cell[1] * rows
+    
+    fig, axes = plt.subplots(rows, cols, figsize=(fig_w, fig_h), constrained_layout=True)
+    fig.patch.set_facecolor('white')
+    
+    if rows == 1 and cols == 1:
+        axes = np.array([[axes]])
+    elif rows == 1:
+        axes = np.array([axes])
+    elif cols == 1:
+        axes = np.expand_dims(axes, axis=1)
+        
+    for idx, genome in enumerate(population):
+        r = idx // cols
+        c = idx % cols
+        ax = axes[r, c]
+        
+        ax.set_facecolor('white')
+        
+        try:
+            if use_vector:
+                draw_genome_on_axis(ax, genome)
+                
+                ax.axis("on")
+
+                ax.set_xticks([])
+                ax.set_yticks([])
+
+                for spine in ax.spines.values():
+                    spine.set_visible(True)
+                    spine.set_color('black')
+                    spine.set_linewidth(1.0)
+                
+                if idx < n:
+                    ax.set_title(f"{idx}", fontsize=10, color='black')
+            else:
+                shape = genome.to_shape()
+                render_to_axes(
+                    ax,
+                    shape,
+                    resolution=resolution,
+                    title=f"{idx}",
+                    draw_edges=draw_edges,
+                    show_axes=True,   
+                    show_grid=False,
+                    frame_only=True, 
+                )
+        except Exception as e:
+            ax.text(0.5, 0.5, f"Error\n{e}", ha="center", va="center")
+            ax.axis("off")
+            
+    for idx in range(n, rows * cols):
+        r = idx // cols
+        c = idx % cols
+        axes[r, c].axis("off")
+        
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    
+    fmt = "svg" if out_path.endswith(".svg") else "png"
+    
+    fig.savefig(out_path, dpi=200, format=fmt, transparent=False, facecolor='white')
     plt.close(fig)
-
-

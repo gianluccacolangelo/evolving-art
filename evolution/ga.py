@@ -2,12 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import List, Sequence, Tuple
-import os
 import numpy as np
-import matplotlib.pyplot as plt
 
-from shapes import Shape
-from plotting.renderer import render_to_axes
 from .genome import (
     CompositionGenome,
     MutationConfig,
@@ -15,7 +11,6 @@ from .genome import (
     mutate_genome,
     breed_uniform,
 )
-
 
 @dataclass(frozen=True)
 class GAConfig:
@@ -30,52 +25,6 @@ def initialize_population(cfg: GAConfig) -> Tuple[np.random.Generator, List[Comp
     pop = [random_genome(rng, cfg.num_genes) for _ in range(cfg.population_size)]
     return rng, pop
 
-
-def render_population_grid(population: Sequence[CompositionGenome],
-                           out_path: str,
-                           cols: int = 4,
-                           resolution: int = 100,
-                           figsize_per_cell: Tuple[float, float] = (3.0, 3.0),
-                           draw_edges: bool = False) -> None:
-    n = len(population)
-    cols = max(1, cols)
-    rows = (n + cols - 1) // cols
-    fig_w = figsize_per_cell[0] * cols
-    fig_h = figsize_per_cell[1] * rows
-    fig, axes = plt.subplots(rows, cols, figsize=(fig_w, fig_h), constrained_layout=True)
-    if rows == 1 and cols == 1:
-        axes = np.array([[axes]])
-    elif rows == 1:
-        axes = np.array([axes])
-    elif cols == 1:
-        axes = np.expand_dims(axes, axis=1)
-    for idx, genome in enumerate(population):
-        r = idx // cols
-        c = idx % cols
-        ax = axes[r, c]
-        try:
-            shape: Shape = genome.to_shape()
-            render_to_axes(
-                ax,
-                shape,
-                resolution=resolution,
-                title=f"{idx}",
-                draw_edges=draw_edges,
-                show_axes=True,
-                show_grid=False,
-                frame_only=True,
-            )
-        except Exception as e:
-            ax.text(0.5, 0.5, f"Error\n{e}", ha="center", va="center")
-            ax.axis("off")
-    # Hide any extra axes
-    for idx in range(n, rows * cols):
-        r = idx // cols
-        c = idx % cols
-        axes[r, c].axis("off")
-    os.makedirs(os.path.dirname(out_path), exist_ok=True)
-    fig.savefig(out_path, dpi=200)
-    plt.close(fig)
 
 
 def ask_user_likes(n_items: int) -> Tuple[List[int], List[int]]:

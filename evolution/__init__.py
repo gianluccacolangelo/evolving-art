@@ -10,7 +10,6 @@ from .genome import (
 from .ga import (
     GAConfig,
     initialize_population,
-    render_population_grid,
     ask_user_likes,
     evolve_one_generation,
 )

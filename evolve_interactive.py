@@ -9,13 +9,11 @@ from typing import Optional
 from evolution import (
     GAConfig,
     initialize_population,
-    render_population_grid,
     ask_user_likes,
     evolve_one_generation,
 )
 from evolution.genome import PrimitiveNode, OpNode, PrimitiveGene, TransformParams, CompositionGenome
-from plotting import render_to_file
-
+from plotting.renderer import render_to_file, render_population_grid
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Interactive evolution of geometric compositions.")
@@ -27,6 +25,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--cols", type=int, default=4, help="columns in the grid")
     p.add_argument("--tag", type=str, default="", help="experiment tag (subfolder) to organize outputs")
     p.add_argument("--save", type=int, nargs="*", default=[], help="indices to save in high quality each generation (e.g., --save 1 3)")
+    p.add_argument("--hq_format", type=str, default="svg", choices=["png", "svg"], help="file format for high-quality saves")
     p.add_argument("--save-res", type=int, default=1200, help="resolution for high-quality individual renders")
     p.add_argument("--save-dpi", type=int, default=300, help="DPI for high-quality individual renders")
     p.add_argument("--checkpoint", type=str, default="", help="path to a *_params.json file to initialize population from")
@@ -143,11 +142,11 @@ def main() -> None:
         # Union of CLI --save and on-demand saves for this generation
         to_save = sorted(set(i for i in (list(saves) + list(args.save)) if 0 <= i < len(population)))
         for idx in to_save:
-            shape = population[idx].to_shape()
-            hq_path = os.path.join(outdir, f"gen_{g:03d}_idx_{idx:02d}_hq.png")
+            genome = population[idx]
+            hq_path = os.path.join(outdir, f"gen_{g:03d}_idx_{idx:02d}_hq.{args.hq_format}")
             print(f"  Saving HQ individual #{idx} -> {hq_path}")
             render_to_file(
-                shape,
+                genome=genome,
                 out_path=hq_path,
                 resolution=args.save_res,
                 dpi=args.save_dpi,
@@ -156,6 +155,7 @@ def main() -> None:
                 show_axes=True,
                 show_grid=False,
                 frame_only=True,
+                format=args.hq_format,
             )
         population = evolve_one_generation(rng, population, likes, cfg)
     # Final render

@@ -2,15 +2,13 @@ from __future__ import annotations
 
 import argparse
 import os
-import numpy as np
 
 from evolution import (
     GAConfig,
     initialize_population,
-    render_population_grid,
     evolve_one_generation,
 )
-
+from plotting.renderer import render_population_grid
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Batch non-interactive evolution with random selection.")
